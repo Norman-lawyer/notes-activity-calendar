@@ -1,0 +1,246 @@
+/* Notes Activity Calendar — Codex-inspired interface.
+ * Typography and base palette checked against the installed Codex desktop app:
+ * System sans and Codex text/accent colors; the base background follows the host sidebar.
+ * All tokens are scoped to this plugin, including its body-mounted popovers.
+ */
+body :is(.notes-calendar, .nc-tooltip, .nc-statcard, .nc-menu, .nc-picker),
+body .workspace-leaf-content[data-type="notes-activity-calendar-view"] {
+  --nc-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --nc-bg: #ffffff;
+  --nc-surface: #f7f7f8;
+  --nc-elevated: #ffffff;
+  --nc-text: #1a1c1f;
+  --nc-muted: #5a5f65;
+  --nc-faint: #6d7278;
+  --nc-border: rgba(26, 28, 31, .10);
+  --nc-hover: rgba(26, 28, 31, .055);
+  --nc-pressed: rgba(26, 28, 31, .09);
+  --nc-accent: #339cff;
+  --nc-accent-text: #075b9e;
+  --nc-selected: #e5f2ff;
+  --nc-heat-1: rgba(51, 156, 255, .07);
+  --nc-heat-2: rgba(51, 156, 255, .13);
+  --nc-heat-3: rgba(51, 156, 255, .22);
+  --nc-heat-4: rgba(51, 156, 255, .33);
+  --nc-created: #218bdf;
+  --nc-modified: #7a8796;
+  --nc-shadow: 0 8px 24px rgba(0, 0, 0, .10), 0 2px 5px rgba(0, 0, 0, .04);
+  font-family: var(--nc-font);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.45;
+  letter-spacing: normal;
+  color: var(--nc-text);
+  -webkit-font-smoothing: antialiased;
+}
+body.theme-dark :is(.notes-calendar, .nc-tooltip, .nc-statcard, .nc-menu, .nc-picker),
+body.theme-dark .workspace-leaf-content[data-type="notes-activity-calendar-view"] {
+  --nc-bg: #181818;
+  --nc-surface: #222222;
+  --nc-elevated: #242424;
+  --nc-text: #ededed;
+  --nc-muted: #b0b0b0;
+  --nc-faint: #929292;
+  --nc-border: rgba(255, 255, 255, .10);
+  --nc-hover: rgba(255, 255, 255, .06);
+  --nc-pressed: rgba(255, 255, 255, .10);
+  --nc-accent-text: #88c4ff;
+  --nc-selected: #173a5b;
+  --nc-created: #69b4ff;
+  --nc-modified: #a1abb7;
+  --nc-shadow: 0 8px 24px rgba(0, 0, 0, .28), 0 2px 5px rgba(0, 0, 0, .18);
+}
+/* Let the host sidebar paint the background in both light and dark modes. */
+body .workspace-leaf-content[data-type="notes-activity-calendar-view"],
+body .notes-calendar {
+  background: transparent;
+}
+body .notes-calendar {
+  padding: 12px 12px 24px;
+  container-type: inline-size;
+  overflow-x: hidden;
+  scrollbar-color: var(--nc-border) transparent;
+}
+.notes-calendar .nc-root { padding: 2px 0; }
+.notes-calendar .nc-head {
+  display: flex; align-items: center; gap: 4px; margin-bottom: 14px;
+}
+.notes-calendar .nc-title {
+  min-width: 0; flex: 1; padding: 4px 3px;
+  font-family: var(--nc-font); font-size: 13px; font-weight: 600; line-height: 20px;
+  color: var(--nc-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.notes-calendar .nc-title-clickable { appearance: none; height: auto; background: transparent; border: 0; box-shadow: none; text-align: left; cursor: pointer; border-radius: 6px; }
+.notes-calendar .nc-title-clickable:hover { background: var(--nc-hover); }
+.notes-calendar .nc-btn,
+.nc-picker .nc-picker-nav,
+.nc-picker .nc-picker-month {
+  appearance: none; font-family: var(--nc-font); font-size: 12px; font-weight: 400;
+  color: var(--nc-text); background: transparent; border: 1px solid transparent;
+  border-radius: 7px; box-shadow: none; cursor: pointer;
+  transition: background-color .12s ease, border-color .12s ease, color .12s ease;
+}
+.notes-calendar .nc-btn {
+  height: 28px; min-height: 28px; padding: 0 8px; line-height: 26px;
+}
+.notes-calendar .nc-head > .nc-btn { flex: 0 0 auto; }
+.notes-calendar .nc-head > .nc-btn:first-child,
+.notes-calendar .nc-head > .nc-btn:last-child {
+  width: 28px; padding: 0; font-size: 18px; color: var(--nc-muted);
+}
+.notes-calendar .nc-btn:hover,
+.nc-picker .nc-picker-nav:hover,
+.nc-picker .nc-picker-month:hover { background: var(--nc-hover); color: var(--nc-text); }
+.notes-calendar .nc-btn:active,
+.nc-picker .nc-picker-nav:active,
+.nc-picker .nc-picker-month:active { background: var(--nc-pressed); }
+.notes-calendar .nc-cell:focus-visible,
+.notes-calendar .nc-title-clickable:focus-visible,
+.notes-calendar .nc-btn:focus-visible,
+.notes-calendar .nc-select:focus-visible,
+.nc-picker button:focus-visible {
+  outline: 2px solid var(--nc-accent); outline-offset: 2px;
+}
+.notes-calendar .nc-filter { margin-bottom: 12px; }
+.notes-calendar .nc-select {
+  width: 100%; height: 30px; padding: 0 8px;
+  font-family: var(--nc-font); font-size: 12px; color: var(--nc-text);
+  border: 1px solid var(--nc-border); border-radius: 7px;
+  background-color: var(--nc-surface); box-shadow: none;
+}
+.notes-calendar .nc-stats {
+  margin-bottom: 8px; font-size: 12px; color: var(--nc-muted);
+  font-variant-numeric: tabular-nums;
+}
+.notes-calendar .nc-stats-sep { color: var(--nc-faint); }
+.notes-calendar .nc-grid {
+  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px;
+}
+.notes-calendar .nc-wd {
+  padding: 2px 0 6px; text-align: center; font-size: 11px;
+  font-weight: 400; line-height: 18px; color: var(--nc-faint);
+}
+.notes-calendar .nc-cell {
+  position: relative; width: 100%; min-width: 0; min-height: 34px; aspect-ratio: 1 / 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border: 1px solid transparent; border-radius: 7px; color: var(--nc-text);
+  appearance: none; height: auto; padding: 0; background: transparent; box-shadow: none;
+  cursor: pointer; font-size: 13px; font-weight: 400;
+  transition: background-color .12s ease, outline-color .12s ease;
+}
+.notes-calendar .nc-cell:hover { background: var(--nc-hover); }
+.notes-calendar .nc-daynum {
+  font-family: var(--nc-font); font-size: 13px; line-height: 16px;
+  font-weight: 400; font-variant-numeric: tabular-nums;
+}
+.notes-calendar .nc-lunar {
+  max-width: 100%; padding: 0 1px; margin-top: 1px;
+  font-family: var(--nc-font); font-size: 9px; font-weight: 400; line-height: 11px;
+  color: var(--nc-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.notes-calendar .nc-lunar-hl { color: var(--nc-accent-text); }
+.notes-calendar .nc-out { opacity: .45; }
+.notes-calendar .nc-heat-1 { background: var(--nc-heat-1); }
+.notes-calendar .nc-heat-2 { background: var(--nc-heat-2); }
+.notes-calendar .nc-heat-3 { background: var(--nc-heat-3); }
+.notes-calendar .nc-heat-4 { background: var(--nc-heat-4); }
+.notes-calendar .nc-heat-3 .nc-lunar,
+.notes-calendar .nc-heat-4 .nc-lunar { color: var(--nc-muted); }
+.notes-calendar .nc-heat-3 .nc-lunar-hl,
+.notes-calendar .nc-heat-4 .nc-lunar-hl { color: var(--nc-accent-text); }
+.notes-calendar .nc-today .nc-daynum { color: var(--nc-accent-text); font-weight: 600; }
+.notes-calendar .nc-today:not(.nc-sel)::after {
+  content: ""; position: absolute; bottom: 1px; width: 3px; height: 3px;
+  border-radius: 50%; background: var(--nc-accent);
+}
+.notes-calendar .nc-sel {
+  background: var(--nc-selected); outline: 1.5px solid var(--nc-accent); outline-offset: -1.5px;
+}
+.notes-calendar .nc-sel .nc-daynum { color: var(--nc-accent-text); font-weight: 600; }
+.notes-calendar .nc-dots { display: flex; gap: 3px; margin-top: 2px; height: 4px; }
+.notes-calendar .nc-dot { width: 4px; height: 4px; border-radius: 50%; }
+:is(.notes-calendar, .nc-tooltip, .nc-statcard) .nc-dot-c { background: var(--nc-created); }
+:is(.notes-calendar, .nc-tooltip, .nc-statcard) .nc-dot-m { background: var(--nc-modified); }
+.notes-calendar .nc-list { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--nc-border); }
+.notes-calendar .nc-list-title {
+  margin: 0 0 10px; font-family: var(--nc-font); font-size: 12px; font-weight: 500;
+  line-height: 18px; color: var(--nc-muted); font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.notes-calendar .nc-daily {
+  width: 100%; height: 32px; min-height: 32px; margin: 0 0 12px; padding: 0 10px;
+  text-align: left; justify-content: flex-start; line-height: 30px;
+  font-size: 12px; border-color: var(--nc-border); background: transparent;
+}
+.notes-calendar .nc-sec {
+  display: flex; align-items: center; gap: 6px; margin: 12px 0 5px;
+  font-size: 11px; font-weight: 500; color: var(--nc-muted); line-height: 16px;
+}
+:is(.notes-calendar, .nc-tooltip, .nc-statcard) .nc-legend-dot {
+  display: inline-block; width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
+}
+.notes-calendar .nc-item {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px;
+  padding: 6px 7px; margin: 0 -7px; border-radius: 7px;
+  font-size: 13px; font-weight: 400; line-height: 1.5;
+}
+.notes-calendar .nc-item:hover { background: var(--nc-hover); }
+.notes-calendar .nc-link {
+  min-width: 0; font-family: var(--nc-font); color: var(--nc-text);
+  text-decoration: none; word-break: break-word; cursor: pointer;
+}
+.notes-calendar .nc-link:hover { color: var(--nc-accent-text); text-decoration: none; }
+.notes-calendar .nc-meta { flex-shrink: 0; font-size: 11px; color: var(--nc-faint); font-variant-numeric: tabular-nums; }
+.notes-calendar .nc-fold { flex-shrink: 0; font-size: 10px; color: var(--nc-faint); }
+.notes-calendar .nc-empty { padding: 8px 0; font-size: 12px; line-height: 1.5; color: var(--nc-muted); }
+
+/* Floating UI shares the calendar's font and palette without inheriting note styles. */
+body :is(.nc-tooltip, .nc-statcard, .nc-menu, .nc-picker) {
+  position: fixed; z-index: 10000; box-sizing: border-box;
+  max-width: calc(100vw - 16px); background: var(--nc-elevated);
+  border: 1px solid var(--nc-border); border-radius: 10px;
+  box-shadow: var(--nc-shadow); animation: nc-fade .12s ease-out;
+}
+@keyframes nc-fade { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: translateY(0); } }
+body .nc-tooltip { z-index: 9999; max-width: min(280px, calc(100vw - 16px)); padding: 10px 12px; pointer-events: none; font-size: 12px; }
+.nc-tooltip .nc-tt-title { margin-bottom: 6px; font-size: 12px; font-weight: 500; color: var(--nc-text); }
+.nc-tooltip .nc-tt-item { display: flex; align-items: center; gap: 6px; padding: 2px 0; color: var(--nc-muted); }
+.nc-tooltip .nc-tt-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.nc-tooltip .nc-tt-more { margin-top: 5px; color: var(--nc-faint); font-size: 11px; }
+body .nc-statcard { z-index: 9999; min-width: min(218px, calc(100vw - 16px)); padding: 14px 16px; }
+.nc-statcard-title { margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--nc-border); font-size: 12px; font-weight: 500; color: var(--nc-muted); }
+.nc-sc-table { display: grid; grid-template-columns: auto 1fr 1fr; column-gap: 20px; row-gap: 12px; align-items: center; }
+.nc-sc-head { display: flex; align-items: center; justify-content: flex-end; gap: 6px; font-size: 11px; color: var(--nc-faint); }
+.nc-sc-period { font-size: 12px; color: var(--nc-muted); }
+.nc-sc-val { text-align: right; font-size: 21px; font-weight: 500; color: var(--nc-text); font-variant-numeric: tabular-nums; line-height: 1.15; }
+body .nc-menu { min-width: min(200px, calc(100vw - 16px)); padding: 5px; }
+.nc-menu-item { display: flex; align-items: center; gap: 9px; padding: 7px 9px; border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--nc-text); }
+.nc-menu-item:hover { background: var(--nc-hover); }
+.nc-menu-ic { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; color: var(--nc-muted); flex-shrink: 0; }
+.nc-menu-ic svg { width: 16px; height: 16px; }
+.nc-menu-label { flex: 1; }
+.nc-menu-sep { height: 1px; margin: 5px 7px; background: var(--nc-border); }
+body .nc-picker { width: min(224px, calc(100vw - 16px)); padding: 10px; }
+.nc-picker-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.nc-picker-year { font-size: 13px; font-weight: 600; color: var(--nc-text); }
+.nc-picker .nc-picker-nav { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; min-height: 28px; padding: 0; font-size: 18px; color: var(--nc-muted); }
+.nc-picker-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+.nc-picker .nc-picker-month { height: 32px; min-height: 32px; padding: 0 4px; font-size: 12px; line-height: 30px; text-align: center; }
+.nc-picker .nc-picker-month.is-today { border-color: var(--nc-accent); color: var(--nc-accent-text); }
+.nc-picker .nc-picker-month.is-selected { background: var(--nc-selected); border-color: var(--nc-accent); color: var(--nc-accent-text); font-weight: 500; }
+@media (prefers-reduced-motion: reduce) {
+  body :is(.nc-tooltip, .nc-statcard, .nc-menu, .nc-picker) { animation: none; }
+  .notes-calendar .nc-cell, .notes-calendar .nc-btn,
+  .nc-picker .nc-picker-nav, .nc-picker .nc-picker-month { transition: none; }
+}
+
+/* Keep the full month label and all seven columns visible in narrow sidebars. */
+@container (max-width: 210px) {
+  .notes-calendar .nc-head { gap: 2px; }
+  .notes-calendar .nc-title { padding-inline: 0; font-size: 12px; }
+  .notes-calendar .nc-head > .nc-btn { padding-inline: 6px; }
+  .notes-calendar .nc-head > .nc-btn:first-child,
+  .notes-calendar .nc-head > .nc-btn:last-child { width: 26px; padding: 0; }
+}
+
+.notes-calendar .nc-render-error { white-space: pre-wrap; font-size: .78em; color: var(--text-error); }
