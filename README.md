@@ -5,7 +5,7 @@
 **Find your notes by the day you created or edited them.**
 
 [![release](https://img.shields.io/github/v/release/Norman-lawyer/notes-activity-calendar?label=release&color=6d4aff)](https://github.com/Norman-lawyer/notes-activity-calendar/releases/latest)
-[![Obsidian downloads](https://img.shields.io/badge/Obsidian%20downloads-view%20official%20stats-339cff)](https://community.obsidian.md/plugins/notes-activity-calendar)
+[![Obsidian downloads](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json&query=%24%5B%22notes-activity-calendar%22%5D.downloads&label=Obsidian%20downloads&color=339cff&cacheSeconds=3600)](https://community.obsidian.md/plugins/notes-activity-calendar)
 [![license](https://img.shields.io/badge/license-MIT-22866b)](LICENSE)
 
 A sidebar calendar for Obsidian: scan a month of activity, select a date, and jump back to the notes you worked on. Optional lunar dates, solar terms, and daily-note shortcuts fit into the same view.
