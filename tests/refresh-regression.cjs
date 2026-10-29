@@ -52,7 +52,7 @@ async function verify(sourceFile) {
   const app = { vault, metadataCache, workspace: {
     onLayoutReady() {}, getLeavesOfType() { return views.map(view => ({ view })); }
   }};
-  const obsidian = { Plugin, PluginSettingTab, ItemView, FuzzySuggestModal: class {}, moment };
+  const obsidian = { Plugin, PluginSettingTab, ItemView, TFile: class {}, TFolder: class {}, FuzzySuggestModal: class {}, moment };
   const context = { module: { exports: {} }, require(name) {
     assert.equal(name, "obsidian"); return obsidian;
   }, window: fakeWindow, document: {}, console };

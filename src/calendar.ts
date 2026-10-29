@@ -1,26 +1,17 @@
 import * as L from "obsidian";
-import * as x0 from "lunar-javascript";
-var r0 = "notes-activity-calendar-view",
-  U = L.moment,
-  R0 = {
-    weekStartMonday: !0,
-    excludeFolders: [],
-    useFilenameDate: !0,
-    frontmatterDateFields: ["date", "created", "创建时间"],
-    looseDailyMatch: !1,
-    showLunar: !0,
-    heatmap: !0,
-    showStats: !0,
-    hoverPreview: !0,
-    showFilter: !1,
-    hoverMaxItems: 6
-  };
-function a0(M) {
+import { Solar } from "lunar-javascript";
+import type { Moment } from "moment";
+import { moment as U } from "./date";
+import type CalendarPlugin from "./main";
+
+export const VIEW_TYPE = "notes-activity-calendar-view";
+
+function dateKey(M: Moment): string {
   return M.format("YYYY-MM-DD");
 }
-function K0(M) {
+function lunarLabel(M: Moment): { text: string; hl: boolean } {
   try {
-    let z = x0.Solar.fromYmd(M.year(), M.month() + 1, M.date()),
+    let z = Solar.fromYmd(M.year(), M.month() + 1, M.date()),
       l = z.getLunar(),
       p = l.getJieQi();
     if (p) return {
@@ -52,16 +43,17 @@ function K0(M) {
     };
   }
 }
-var F0 = class extends L.FuzzySuggestModal {
-    constructor(z, l) {
+class FolderSuggestModal extends L.FuzzySuggestModal<L.TFolder> {
+    onChoose: (folder: L.TFolder) => void;
+    constructor(z: L.App, l: (folder: L.TFolder) => void) {
       super(z);
       this.onChoose = l;
       this.setPlaceholder("选择要放入的文件夹…");
     }
-    getItems() {
-      let z = [],
+    getItems(): L.TFolder[] {
+      let z: L.TFolder[] = [],
         l = this.app.vault.getRoot(),
-        p = I => {
+        p = (I: L.TFolder): void => {
           z.push(I);
           for (let N of I.children) {
             if (N instanceof L.TFolder) {
@@ -71,35 +63,36 @@ var F0 = class extends L.FuzzySuggestModal {
         };
       return p(l), z;
     }
-    getItemText(z) {
+    getItemText(z: L.TFolder) {
       return z.path === "/" ? "（库根目录）" : z.path;
     }
-    onChooseItem(z) {
+    onChooseItem(z: L.TFolder) {
       this.onChoose(z);
     }
-  },
-  g0 = class extends L.ItemView {
-    constructor(l, p) {
+  }
+
+export class CalendarView extends L.ItemView {
+    createdMap = new Map<string, L.TFile[]>();
+    modifiedMap = new Map<string, L.TFile[]>();
+    filter: { type: "all" | "folder" | "tag"; value: string } = { type: "all", value: "" };
+    tooltipEl: HTMLDivElement | null = null;
+    statsCardEl: HTMLDivElement | null = null;
+    menuEl: HTMLDivElement | null = null;
+    titleEl: HTMLButtonElement | null = null;
+    pickerEl: HTMLDivElement | null = null;
+    pickerYear = 0;
+    plugin: CalendarPlugin;
+    viewMonth: Moment;
+    selected: Moment;
+
+    constructor(l: L.WorkspaceLeaf, p: CalendarPlugin) {
       super(l);
-      this.createdMap = new Map();
-      this.modifiedMap = new Map();
-      this.filter = {
-        type: "all",
-        value: ""
-      };
-      this.tooltipEl = null;
-      this.statsCardEl = null;
-      this.menuEl = null;
-      this.titleEl = null;
-      this.pickerEl = null;
-      this.pickerYear = 0;
-      this.refreshTimer = null;
       this.plugin = p;
       this.viewMonth = U().startOf("month");
       this.selected = U().startOf("day");
     }
     getViewType() {
-      return r0;
+      return VIEW_TYPE;
     }
     getDisplayText() {
       return "日历";
@@ -131,7 +124,7 @@ var F0 = class extends L.FuzzySuggestModal {
         this.renderError(l);
       }
     }
-    renderError(l) {
+    renderError(l: unknown) {
       let p = this.contentEl;
       p.empty();
       p.addClass("notes-calendar");
@@ -144,7 +137,7 @@ var F0 = class extends L.FuzzySuggestModal {
       });
       I.createEl("pre", {
         cls: "nc-render-error",
-        text: String(l && (l.stack || l.message) || l)
+        text: l instanceof Error ? l.stack || l.message : String(l)
       });
       console.error("[notes-calendar] render failed:", l);
     }
@@ -157,8 +150,8 @@ var F0 = class extends L.FuzzySuggestModal {
       this.closeMenu();
       this.closePicker();
     }
-    dismissPopovers(l) {
-      if (l.key === "Escape") {
+    dismissPopovers(l: MouseEvent | KeyboardEvent) {
+      if ("key" in l && l.key === "Escape") {
         this.closeMenu();
         this.closePicker();
         this.hideTooltip();
@@ -166,6 +159,7 @@ var F0 = class extends L.FuzzySuggestModal {
         return;
       }
       let p = l.target;
+      if (!(p instanceof Node)) return;
       if (this.menuEl && !this.menuEl.contains(p)) {
         this.closeMenu();
       }
@@ -173,13 +167,13 @@ var F0 = class extends L.FuzzySuggestModal {
         this.closePicker();
       }
     }
-    isExcluded(l) {
+    isExcluded(l: string) {
       return this.plugin.settings.excludeFolders.some(p => {
         const folder = (0, L.normalizePath)(p.trim());
         return folder && (l === folder || l.startsWith(folder + "/"));
       });
     }
-    passesFilter(l) {
+    passesFilter(l: L.TFile) {
       if (this.filter.type === "all") return !0;
       if (this.filter.type === "folder") {
         let p = this.filter.value;
@@ -191,8 +185,7 @@ var F0 = class extends L.FuzzySuggestModal {
       }
       return !0;
     }
-    createdOf(l) {
-      var N;
+    createdOf(l: L.TFile): Moment {
       let p = this.plugin.settings;
       if (p.useFilenameDate) {
         let G = l.basename.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -201,10 +194,10 @@ var F0 = class extends L.FuzzySuggestModal {
           if (Z.isValid()) return Z;
         }
       }
-      let I = (N = this.app.metadataCache.getFileCache(l)) == null ? void 0 : N.frontmatter;
+      const I = this.app.metadataCache.getFileCache(l)?.frontmatter;
       if (I) for (let G of p.frontmatterDateFields) {
-        let Z = I[G];
-        if (Z == null) continue;
+        const Z: unknown = I[G];
+        if (typeof Z !== "string" && typeof Z !== "number") continue;
         let k = String(Z).trim();
         if (!k || /invalid/i.test(k)) continue;
         let H = U(k);
@@ -218,28 +211,28 @@ var F0 = class extends L.FuzzySuggestModal {
       for (let l of this.app.vault.getMarkdownFiles()) {
         if (this.isExcluded(l.path) || !this.passesFilter(l)) continue;
         let p = this.createdOf(l),
-          I = p.isValid() ? a0(p) : null,
-          N = a0(U(l.stat.mtime));
+          I = p.isValid() ? dateKey(p) : null,
+          N = dateKey(U(l.stat.mtime));
         if (I) {
           if (!this.createdMap.has(I)) {
             this.createdMap.set(I, []);
           }
-          this.createdMap.get(I).push(l);
+          this.createdMap.get(I)?.push(l);
         }
         if (N && N !== I) {
           if (!this.modifiedMap.has(N)) {
             this.modifiedMap.set(N, []);
           }
-          this.modifiedMap.get(N).push(l);
+          this.modifiedMap.get(N)?.push(l);
         }
       }
       for (const [day, entries] of Object.entries(this.plugin.history || {})) {
         for (const path of Object.keys(entries)) {
           const file = this.app.vault.getAbstractFileByPath(path);
-          if (!(file instanceof L.TFile) || this.isExcluded(file.path) || !this.passesFilter(file) || a0(this.createdOf(file)) === day) continue;
+          if (!(file instanceof L.TFile) || this.isExcluded(file.path) || !this.passesFilter(file) || dateKey(this.createdOf(file)) === day) continue;
           if (!this.modifiedMap.has(day)) this.modifiedMap.set(day, []);
           const list = this.modifiedMap.get(day);
-          if (!list.some(existing => existing.path === file.path)) list.push(file);
+          if (list && !list.some(existing => existing.path === file.path)) list.push(file);
         }
       }
     }
@@ -309,8 +302,7 @@ var F0 = class extends L.FuzzySuggestModal {
       this.renderGrid(p);
       this.renderList(p);
     }
-    renderFilter(l) {
-      var b, i;
+    renderFilter(l: HTMLElement) {
       let I = l.createDiv({
           cls: "nc-filter"
         }).createEl("select", {
@@ -326,8 +318,15 @@ var F0 = class extends L.FuzzySuggestModal {
           value: "folder::" + T.path
         });
       }
-      let k = ((i = (b = this.app.metadataCache).getTags) == null ? void 0 : i.call(b)) || {},
-        H = Object.keys(k).sort((P, T) => k[T] - k[P]);
+      const tagCounts = new Map<string, number>();
+      for (const file of this.app.vault.getMarkdownFiles()) {
+        if (this.isExcluded(file.path)) continue;
+        const cache = this.app.metadataCache.getFileCache(file);
+        for (const tag of cache ? L.getAllTags(cache) ?? [] : []) {
+          tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+        }
+      }
+      const H = [...tagCounts.keys()].sort((a, b) => (tagCounts.get(b) ?? 0) - (tagCounts.get(a) ?? 0));
       if (H.length) {
         let P = I.createEl("optgroup");
         P.label = "标签";
@@ -338,16 +337,17 @@ var F0 = class extends L.FuzzySuggestModal {
       }
       I.value = this.filter.type === "all" ? "all::" : this.filter.type + "::" + this.filter.value;
       I.onchange = () => {
-        let [P, T] = I.value.split("::");
+        const separator = I.value.indexOf("::");
+        const type = I.value.slice(0, separator);
         this.filter = {
-          type: P,
-          value: T
+          type: type === "folder" || type === "tag" ? type : "all",
+          value: I.value.slice(separator + 2)
         };
         this.rebuild();
         this.render();
       };
     }
-    countInRange(l, p, I) {
+    countInRange(l: Map<string, L.TFile[]>, p: Moment, I: Moment) {
       let N = 0;
       for (let [G, Z] of l) {
         let k = U(G, "YYYY-MM-DD");
@@ -357,13 +357,13 @@ var F0 = class extends L.FuzzySuggestModal {
       }
       return N;
     }
-    showStatsCard(l) {
+    showStatsCard(l: HTMLElement) {
       this.hideStatsCard();
       let p = this.viewMonth.clone().startOf("month"),
         I = this.viewMonth.clone().endOf("month"),
         N = this.countInRange(this.createdMap, p, I),
         G = this.countInRange(this.modifiedMap, p, I),
-        Z = this.plugin.settings.weekStartMonday ? "isoWeek" : "week",
+        Z: "isoWeek" | "week" = this.plugin.settings.weekStartMonday ? "isoWeek" : "week",
         k = U().startOf(Z),
         H = U().endOf(Z),
         b = this.countInRange(this.createdMap, k, H),
@@ -400,7 +400,7 @@ var F0 = class extends L.FuzzySuggestModal {
       Q.createSpan({
         text: "修改"
       });
-      let W = (R, V, s0) => {
+      let W = (R: string, V: number, s0: number) => {
         T.createDiv({
           cls: "nc-sc-period",
           text: R
@@ -430,10 +430,10 @@ var F0 = class extends L.FuzzySuggestModal {
         this.statsCardEl = null;
       }
     }
-    heatLevel(l) {
+    heatLevel(l: number) {
       return l <= 0 ? 0 : l <= 2 ? 1 : l <= 5 ? 2 : l <= 9 ? 3 : 4;
     }
-    renderGrid(l) {
+    renderGrid(l: HTMLElement) {
       let p = l.createDiv({
           cls: "nc-grid"
         }),
@@ -445,11 +445,11 @@ var F0 = class extends L.FuzzySuggestModal {
       let N = this.viewMonth.clone().startOf("month"),
         G = this.plugin.settings.weekStartMonday ? N.isoWeekday() - 1 : N.day(),
         Z = N.clone().subtract(G, "days"),
-        k = a0(U()),
+        k = dateKey(U()),
         H = this.plugin.settings.heatmap;
       for (let b = 0; b < 42; b++) {
         let i = Z.clone().add(b, "days"),
-          P = a0(i),
+          P = dateKey(i),
           T = p.createEl("button", {
             cls: "nc-cell"
           });
@@ -459,14 +459,14 @@ var F0 = class extends L.FuzzySuggestModal {
         if (P === k) {
           T.addClass("nc-today");
         }
-        if (P === a0(this.selected)) {
+        if (P === dateKey(this.selected)) {
           T.addClass("nc-sel");
         }
         let K = (this.createdMap.get(P) || []).length,
           Q = (this.modifiedMap.get(P) || []).length,
           W = K + Q;
         T.setAttribute("aria-label", `${i.format("YYYY-MM-DD")}，新建 ${K}，修改 ${Q}`);
-        T.setAttribute("aria-pressed", P === a0(this.selected) ? "true" : "false");
+        T.setAttribute("aria-pressed", P === dateKey(this.selected) ? "true" : "false");
         if (H) {
           let J = this.heatLevel(W);
           if (J > 0) {
@@ -477,7 +477,7 @@ var F0 = class extends L.FuzzySuggestModal {
           cls: "nc-daynum",
           text: String(i.date())
         }), this.plugin.settings.showLunar) {
-          let J = K0(i);
+          let J = lunarLabel(i);
           if (J.text) {
             T.createDiv({
               cls: "nc-lunar" + (J.hl ? " nc-lunar-hl" : ""),
@@ -506,7 +506,7 @@ var F0 = class extends L.FuzzySuggestModal {
             this.viewMonth = i.clone().startOf("month");
           }
           this.render();
-          if (event && event.detail === 0) this.contentEl.querySelector(".nc-cell.nc-sel")?.focus();
+          if (event && event.detail === 0) this.contentEl.querySelector<HTMLButtonElement>(".nc-cell.nc-sel")?.focus();
         };
         T.oncontextmenu = J => {
           J.preventDefault();
@@ -518,11 +518,11 @@ var F0 = class extends L.FuzzySuggestModal {
         }
       }
     }
-    renderList(l) {
+    renderList(l: HTMLElement) {
       let p = l.createDiv({
           cls: "nc-list"
         }),
-        I = a0(this.selected),
+        I = dateKey(this.selected),
         N = (this.createdMap.get(I) || []).slice().sort((H, b) => H.basename.localeCompare(b.basename)),
         G = (this.modifiedMap.get(I) || []).slice().sort((H, b) => ((this.plugin.history[I] || {})[b.path] || b.stat.mtime) - ((this.plugin.history[I] || {})[H.path] || H.stat.mtime));
       p.createDiv({
@@ -534,13 +534,13 @@ var F0 = class extends L.FuzzySuggestModal {
           cls: "nc-btn nc-daily",
           text: Z ? "📓 打开当天日记" : "➕ 新建当天日记"
         });
-      if (k.onclick = async () => {
+      if (k.onclick = () => this.plugin.runAction(async () => {
         if (Z) {
           await this.plugin.openFile(Z);
         } else {
           await this.plugin.createDailyNote(this.selected);
         }
-      }, !N.length && !G.length) {
+      }), !N.length && !G.length) {
         p.createDiv({
           cls: "nc-empty",
           text: "这天没有文档活动。"
@@ -550,7 +550,7 @@ var F0 = class extends L.FuzzySuggestModal {
       this.section(p, "新建", N, !1, "c");
       this.section(p, "修改", G, !0, "m");
     }
-    section(l, p, I, N, G) {
+    section(l: HTMLElement, p: string, I: L.TFile[], N: boolean, G: "c" | "m") {
       if (!I.length) return;
       let Z = l.createDiv({
         cls: "nc-sec"
@@ -568,7 +568,7 @@ var F0 = class extends L.FuzzySuggestModal {
         if (N) {
           H.createSpan({
             cls: "nc-meta",
-            text: U((this.plugin.history[a0(this.selected)] || {})[k.path] || k.stat.mtime).format("HH:mm")
+            text: U((this.plugin.history[dateKey(this.selected)] || {})[k.path] || k.stat.mtime).format("HH:mm")
           });
         }
         let b = H.createEl("a", {
@@ -577,7 +577,7 @@ var F0 = class extends L.FuzzySuggestModal {
         });
         b.onclick = i => {
           i.preventDefault();
-          this.plugin.openFile(k, i.metaKey || i.ctrlKey);
+          this.plugin.runAction(() => this.plugin.openFile(k, i.metaKey || i.ctrlKey));
         };
         if (k.parent && k.parent.path !== "/") {
           H.createSpan({
@@ -587,14 +587,14 @@ var F0 = class extends L.FuzzySuggestModal {
         }
       }
     }
-    showDayMenu(l, p) {
+    showDayMenu(l: MouseEvent, p: Moment) {
       this.closeMenu();
       this.hideTooltip();
       let I = document.body.createDiv({
         cls: "nc-menu"
       });
       this.menuEl = I;
-      let N = (k, H, b) => {
+      let N = (k: string, H: string, b: () => void | Promise<void>) => {
           let i = I.createDiv({
               cls: "nc-menu-item"
             }),
@@ -609,7 +609,7 @@ var F0 = class extends L.FuzzySuggestModal {
           i.onclick = T => {
             T.stopPropagation();
             this.closeMenu();
-            b();
+            this.plugin.runAction(b);
           };
         },
         G = this.plugin.getDailyNote(p);
@@ -618,7 +618,7 @@ var F0 = class extends L.FuzzySuggestModal {
       } else {
         N("calendar-plus", "新建当天日记", () => this.plugin.createDailyNote(p));
       }
-      N("file-plus", "在此日期新建普通笔记…", () => new F0(this.app, k => this.plugin.createPlainNote(p, k)).open());
+      N("file-plus", "在此日期新建普通笔记…", () => new FolderSuggestModal(this.app, k => this.plugin.runAction(() => this.plugin.createPlainNote(p, k))).open());
       I.createDiv({
         cls: "nc-menu-sep"
       });
@@ -642,7 +642,7 @@ var F0 = class extends L.FuzzySuggestModal {
         this.menuEl = null;
       }
     }
-    showMonthPicker(l) {
+    showMonthPicker(l: HTMLElement) {
       this.closePicker();
       this.closeMenu();
       this.pickerYear = this.viewMonth.year();
@@ -660,7 +660,7 @@ var F0 = class extends L.FuzzySuggestModal {
       }
       p.style.left = N + "px";
     }
-    renderPicker(l) {
+    renderPicker(l: HTMLElement) {
       l.empty();
       let p = l.createDiv({
           cls: "nc-picker-head"
@@ -718,7 +718,7 @@ var F0 = class extends L.FuzzySuggestModal {
         this.pickerEl = null;
       }
     }
-    showTooltip(l, p, I, N) {
+    showTooltip(l: HTMLElement, p: Moment, I: number, N: number) {
       this.hideTooltip();
       if (I + N === 0) return;
       let G = document.body.createDiv({
@@ -729,7 +729,7 @@ var F0 = class extends L.FuzzySuggestModal {
         cls: "nc-tt-title",
         text: `${p.format("M月D日")} \xB7 \u65B0\u5EFA ${I} \xB7 \u4FEE\u6539 ${N}`
       });
-      let Z = a0(p),
+      let Z = dateKey(p),
         k = [];
       for (let i of this.createdMap.get(Z) || []) k.push({
         name: i.basename,
@@ -772,274 +772,4 @@ var F0 = class extends L.FuzzySuggestModal {
       this.rebuild();
       this.render();
     }
-  },
-  o0 = class extends L.Plugin {
-    async onload() {
-      await this.loadSettings();
-      this.seedHistory();
-      await this.persistData();
-      this.registerActivityEvents();
-      this.registerView(r0, z => new g0(z, this));
-      this.addRibbonIcon("calendar-days", "打开日历", () => this.activateView());
-      this.addCommand({
-        id: "open-notes-calendar",
-        name: "打开日历",
-        callback: () => this.activateView()
-      });
-      this.addSettingTab(new C0(this.app, this));
-      this.app.workspace.onLayoutReady(async () => {
-        var z;
-        for (let l of this.app.workspace.getLeavesOfType(r0)) try {
-          let p = l;
-          if (typeof p.loadIfDeferred == "function") {
-            await p.loadIfDeferred();
-          } else {
-            if (!(l.view instanceof g0)) {
-              await l.setViewState({
-                type: r0,
-                active: !1
-              });
-            }
-          }
-          let I = l.view;
-          if (I instanceof g0) {
-            if (!((z = I.externalRefresh) == null)) {
-              z.call(I);
-            }
-          }
-        } catch (p) {
-          console.error("[notes-calendar] deferred load failed:", p);
-        }
-      });
-    }
-    registerActivityEvents() {
-      let refreshTimer = null;
-      const refresh = () => {
-        if (refreshTimer !== null) window.clearTimeout(refreshTimer);
-        refreshTimer = window.setTimeout(() => {
-          refreshTimer = null;
-          this.refreshViews();
-        }, 400);
-      };
-      this.registerEvent(this.app.vault.on("modify", file => {
-        this.recordModification(file);
-        refresh();
-      }));
-      this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
-        if (file && oldPath) this.renameHistory(oldPath, file.path);
-        refresh();
-      }));
-      for (const event of ["create", "delete"]) this.registerEvent(this.app.vault.on(event, refresh));
-      this.registerEvent(this.app.metadataCache.on("changed", refresh));
-      this.registerEvent(this.app.metadataCache.on("resolved", refresh));
-      this.register(() => {
-        if (refreshTimer !== null) window.clearTimeout(refreshTimer);
-      });
-    }
-    seedHistory() {
-      for (const file of this.app.vault.getMarkdownFiles()) this.recordModification(file, false);
-    }
-    recordModification(file, persist = true) {
-      if (!file || !(file instanceof L.TFile) || file.extension !== "md" || !Number.isFinite(file.stat.mtime)) return;
-      const day = a0(U(file.stat.mtime));
-      if (!this.history[day]) this.history[day] = {};
-      if (this.history[day][file.path] === file.stat.mtime) return;
-      this.history[day][file.path] = file.stat.mtime;
-      if (persist) void this.persistData().catch(error => console.error("[notes-calendar] save failed", error));
-    }
-    renameHistory(oldPath, newPath) {
-      let changed = false;
-      for (const entries of Object.values(this.history)) {
-        for (const path of Object.keys(entries)) {
-          if (path === oldPath || path.startsWith(oldPath + "/")) {
-            entries[newPath + path.slice(oldPath.length)] = entries[path];
-            delete entries[path];
-            changed = true;
-          }
-        }
-      }
-      if (changed) void this.persistData().catch(error => console.error("[notes-calendar] save failed", error));
-    }
-    persistData() {
-      const snapshot = JSON.parse(JSON.stringify({
-        ...this.settings,
-        activityHistory: this.history
-      }));
-      this.saveQueue = (this.saveQueue || Promise.resolve()).catch(error => console.error("[notes-calendar] save failed", error)).then(() => this.saveData(snapshot));
-      return this.saveQueue;
-    }
-    onunload() {}
-    async activateView() {
-      let z = this.app.workspace.getLeavesOfType(r0);
-      if (z.length) {
-        this.app.workspace.revealLeaf(z[0]);
-        return;
-      }
-      let l = this.app.workspace.getLeftLeaf(!1);
-      await l.setViewState({
-        type: r0,
-        active: !0
-      });
-      this.app.workspace.revealLeaf(l);
-    }
-    refreshViews() {
-      for (let z of this.app.workspace.getLeavesOfType(r0)) {
-        let l = z.view;
-        if (l && l.externalRefresh) {
-          l.externalRefresh();
-        }
-      }
-    }
-    dailyOptions() {
-      var p, I, N;
-      let z = (N = (I = (p = this.app.internalPlugins) == null ? void 0 : p.getPluginById) == null ? void 0 : I.call(p, "daily-notes")) == null ? void 0 : N.instance,
-        l = (z == null ? void 0 : z.options) || {};
-      return {
-        folder: (l.folder || "").trim(),
-        format: (l.format || "YYYY-MM-DD").trim(),
-        template: (l.template || "").trim()
-      };
-    }
-    dailyPath(z) {
-      let l = this.dailyOptions(),
-        p = z.format(l.format),
-        I = l.folder ? `${l.folder}/${p}.md` : `${p}.md`;
-      return (0, L.normalizePath)(I);
-    }
-    getDailyNote(z) {
-      let l = this.app.vault.getAbstractFileByPath(this.dailyPath(z));
-      if (l instanceof L.TFile) return l;
-      if (this.settings.looseDailyMatch) {
-        const path = this.dailyPath(z),
-          slash = path.lastIndexOf("/");
-        const folder = slash < 0 ? "/" : path.slice(0, slash);
-        const name = path.slice(slash + 1, -3);
-        const Z = this.app.vault.getMarkdownFiles().find(k => k.parent && k.parent.path === folder && k.basename.startsWith(name) && (k.basename.length === name.length || /^[^\p{L}\p{N}]/u.test(k.basename.slice(name.length))));
-        if (Z) return Z;
-      }
-      return null;
-    }
-    async ensureFolder(z) {
-      let l = z.split("/").filter(Boolean),
-        p = "";
-      for (let I of l) if (p = p ? `${p}/${I}` : I, !this.app.vault.getAbstractFileByPath(p)) try {
-        await this.app.vault.createFolder(p);
-      } catch (error) {
-        if (!this.app.vault.getAbstractFileByPath(p)) throw error;
-      }
-    }
-    applyTemplateTokens(z, l, p) {
-      let I = this.dailyOptions();
-      return z.replace(/{{\s*title\s*}}/g, p).replace(/{{\s*date\s*:([^}]+)}}/g, (N, G) => l.format(G.trim())).replace(/{{\s*time\s*:([^}]+)}}/g, (N, G) => U().format(G.trim())).replace(/{{\s*date\s*}}/g, l.format(I.format || "YYYY-MM-DD")).replace(/{{\s*time\s*}}/g, U().format("HH:mm"));
-    }
-    async createDailyNote(z) {
-      let l = this.getDailyNote(z);
-      if (l) {
-        await this.openFile(l);
-        return;
-      }
-      let p = this.dailyOptions(),
-        I = this.dailyPath(z),
-        N = I.includes("/") ? I.slice(0, I.lastIndexOf("/")) : "";
-      if (N) {
-        await this.ensureFolder(N);
-      }
-      let G = "";
-      if (p.template) {
-        let Z = this.app.vault.getAbstractFileByPath((0, L.normalizePath)(p.template.endsWith(".md") ? p.template : p.template + ".md"));
-        if (Z instanceof L.TFile) {
-          G = this.applyTemplateTokens(await this.app.vault.read(Z), z, I.slice(I.lastIndexOf("/") + 1, -3));
-        }
-      }
-      try {
-        let Z = await this.app.vault.create(I, G);
-        await this.openFile(Z);
-      } catch (Z) {
-        new L.Notice("新建日记失败：" + Z.message);
-      }
-    }
-    async createPlainNote(z, l) {
-      let p = z.format("YYYY-MM-DD"),
-        I = l.path === "/" ? "" : l.path,
-        N = p,
-        G = 1;
-      for (; this.app.vault.getAbstractFileByPath((0, L.normalizePath)(I ? `${I}/${N}.md` : `${N}.md`));) N = `${p} ${G++}`;
-      let Z = (0, L.normalizePath)(I ? `${I}/${N}.md` : `${N}.md`);
-      try {
-        let k = await this.app.vault.create(Z, "");
-        await this.openFile(k);
-      } catch (k) {
-        new L.Notice("新建笔记失败：" + k.message);
-      }
-    }
-    async openFile(z, l = !1) {
-      await this.app.workspace.getLeaf(l).openFile(z);
-    }
-    async loadSettings() {
-      const data = (await this.loadData()) || {};
-      this.history = data.activityHistory && typeof data.activityHistory === "object" && !Array.isArray(data.activityHistory) ? data.activityHistory : {};
-      this.settings = Object.assign({}, R0, data);
-      delete this.settings.activityHistory;
-    }
-    async saveSettings() {
-      await this.persistData();
-      this.refreshViews();
-    }
-  },
-  C0 = class extends L.PluginSettingTab {
-    constructor(z, l) {
-      super(z, l);
-      this.plugin = l;
-    }
-    display() {
-      let {
-        containerEl: z
-      } = this;
-      z.empty();
-      new L.Setting(z).setName("周一作为一周开始").setDesc("关闭则以周日开始。").addToggle(p => p.setValue(this.plugin.settings.weekStartMonday).onChange(async I => {
-        this.plugin.settings.weekStartMonday = I;
-        await this.plugin.saveSettings();
-      }));
-      new L.Setting(z).setName("热力图").setDesc("用颜色深浅表示当天活动量；关闭则用绿/橙圆点。").addToggle(p => p.setValue(this.plugin.settings.heatmap).onChange(async I => {
-        this.plugin.settings.heatmap = I;
-        await this.plugin.saveSettings();
-      }));
-      new L.Setting(z).setName("显示筛选下拉").addToggle(p => p.setValue(this.plugin.settings.showFilter).onChange(async I => {
-        this.plugin.settings.showFilter = I;
-        await this.plugin.saveSettings();
-      }));
-      new L.Setting(z).setName("显示统计条").addToggle(p => p.setValue(this.plugin.settings.showStats).onChange(async I => {
-        this.plugin.settings.showStats = I;
-        await this.plugin.saveSettings();
-      }));
-      new L.Setting(z).setName("悬停预览").addToggle(p => p.setValue(this.plugin.settings.hoverPreview).onChange(async I => {
-        this.plugin.settings.hoverPreview = I;
-        await this.plugin.saveSettings();
-      }));
-      new L.Setting(z).setName("用文件名日期作为创建日期").setDesc("文件名以 YYYY-MM-DD 开头时优先用它（对 iCloud 等会重置创建时间的场景更可靠）。").addToggle(p => p.setValue(this.plugin.settings.useFilenameDate).onChange(async I => {
-        this.plugin.settings.useFilenameDate = I;
-        await this.plugin.saveSettings();
-      }));
-      new L.Setting(z).setName("frontmatter 日期字段").setDesc("按顺序尝试这些字段作为创建日期，逗号分隔。").addText(p => p.setValue(this.plugin.settings.frontmatterDateFields.join(",")).onChange(async I => {
-        this.plugin.settings.frontmatterDateFields = I.split(",").map(N => N.trim()).filter(Boolean);
-        await this.plugin.saveSettings();
-      }));
-      new L.Setting(z).setName("排除文件夹").setDesc("这些文件夹里的笔记不计入活动，逗号或换行分隔。").addTextArea(p => p.setValue(this.plugin.settings.excludeFolders.join(`
-`)).onChange(async I => {
-        this.plugin.settings.excludeFolders = I.split(/[\n,]/).map(N => N.trim()).filter(Boolean);
-        await this.plugin.saveSettings();
-      }));
-      new L.Setting(z).setName("显示农历").setDesc("在每个日期下显示农历（节气/节日优先，初一显示月份）。").addToggle(p => p.setValue(this.plugin.settings.showLunar).onChange(async I => {
-        this.plugin.settings.showLunar = I;
-        await this.plugin.saveSettings();
-      }));
-      new L.Setting(z).setName("宽松匹配日记").setDesc("开启后，日记文件夹里文件名以该日期开头的笔记（如 2026-09-17-反思）也算当天日记，避免误建重复日记。").addToggle(p => p.setValue(this.plugin.settings.looseDailyMatch).onChange(async I => {
-        this.plugin.settings.looseDailyMatch = I;
-        await this.plugin.saveSettings();
-      }));
-      z.createEl("p", {
-        cls: "setting-item-description"
-      }).setText("日记的文件夹/格式/模板沿用「设置 → 核心插件 → 日记」的配置。");
-    }
-  };
-export default o0;
+  }

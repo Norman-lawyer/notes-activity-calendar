@@ -1,0 +1,94 @@
+name: Prepare attested draft release
+
+# A tag push is an explicit maintainer release action. This workflow never publishes.
+on:
+  push:
+    tags: ['[0-9]*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  draft:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.22.2
+          cache: npm
+      - name: Validate release identity
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          const manifest = JSON.parse(readFileSync('manifest.json', 'utf8'));
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+          assert.match(process.env.RELEASE_TAG, /^\d+\.\d+\.\d+$/);
+          assert.equal(manifest.version, process.env.RELEASE_TAG);
+          assert.equal(pkg.version, manifest.version);
+          assert.equal(manifest.id, 'notes-activity-calendar');
+          NODE
+      - run: npm ci --ignore-scripts
+      - name: Typecheck, lint, build and regressions
+        run: npm run check
+      - name: Obsidian scanner preflight
+        uses: obsidianmd/obsidian-workflows@8167caed39664214d82c86fdfa32e06d8d55f61d # v1.2.3
+        with:
+          mode: pr
+          build: npm run build
+          scanner-lint: true
+          strict: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Verify deterministic assets and embedded licenses
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          const bundle = readFileSync('main.js', 'utf8');
+          for (const file of ['LICENSE', 'LUNAR-LICENSE']) {
+            assert.ok(bundle.includes(readFileSync(file, 'utf8').trim()), `${file} must be embedded in main.js`);
+          }
+          NODE
+          sha256sum main.js manifest.json styles.css > "$RUNNER_TEMP/release-checksums"
+          npm run build
+          sha256sum --check "$RUNNER_TEMP/release-checksums"
+      - name: Attest the exact release assets
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
+          create-storage-record: false
+      - name: Verify attestations before creating a draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for asset in main.js manifest.json styles.css; do
+            gh attestation verify "$asset" --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
+              --source-digest "$GITHUB_SHA"
+          done
+      - name: Create draft with supported assets only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$RELEASE_TAG" --verify-tag --draft \
+            --title "$RELEASE_TAG" --generate-notes \
+            main.js manifest.json styles.css

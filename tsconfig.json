@@ -1,1 +1,24 @@
-{"compilerOptions":{"allowJs":true,"checkJs":false,"noEmit":true,"target":"ES2020","module":"CommonJS"},"include":["src/**/*.js"]}
+{
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": [
+      "DOM",
+      "ES2020"
+    ],
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "paths": {
+      "moment": [
+        "./node_modules/obsidian/node_modules/moment",
+        "./node_modules/moment"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*.ts"
+  ]
+}

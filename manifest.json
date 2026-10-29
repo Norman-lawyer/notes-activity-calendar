@@ -1,7 +1,7 @@
 {
   "id": "notes-activity-calendar",
   "name": "Notes Activity Calendar",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "minAppVersion": "1.14.5",
   "description": "Show a calendar of created and modified notes, with lunar dates and daily note shortcuts.",
   "author": "Norman",
