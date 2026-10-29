@@ -72,3 +72,15 @@ false positives. Directory listing also does not imply manual security review.
 - [GitHub artifact attestations](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations)
 - [GitHub attestation verification](https://cli.github.com/manual/gh_attestation_verify)
 - [Public plugin scorecard](https://community.obsidian.md/plugins/notes-activity-calendar#scorecard)
+
+## Development dependency security note (0.1.5)
+
+The project overrides the development-only Moment dependency to 2.31.0 to fix
+[GHSA-4p3w-j4w9-5jqw](https://github.com/advisories/GHSA-4p3w-j4w9-5jqw).
+This covers local API types, tests and lint tooling; Moment is not bundled in the
+plugin, which uses Obsidian's runtime export. This does not update Obsidian itself.
+The pinned upstream scanner creates a separate temporary dependency project, so
+our override does not alter that project's dependency tree. Its own npm install
+may still report upstream development-tool advisories even when the plugin's
+full dependency audit and scanner policy checks pass. Do not hide these messages
+or apply `npm audit fix --force` to bypass them.
