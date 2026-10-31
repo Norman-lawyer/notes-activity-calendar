@@ -16,6 +16,8 @@ A sidebar calendar for Obsidian: scan a month of activity, select a date, and ju
 
 *Feature illustration using fictional notes, not an application screenshot. Labels are translated for this English guide; the shipped interface remains Chinese.*
 
+Maintained with the help of dsh-superagent.
+
 ## What can I do with it?
 
 | Task | How it works |
